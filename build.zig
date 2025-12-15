@@ -37,12 +37,44 @@ pub fn build(b: *std.Build) void {
         .target = target,
     });
 
+    // Vendor OpenSSL from source tarball. We build it
+    // in-place within the fetched source tree and reuse the cached result.
+    const openssl_dep = b.dependency("openssl", .{});
+    const openssl_src = openssl_dep.path(".");
+    const openssl_src_path = openssl_src.getPath(b);
+    const openssl_build = blk: {
+        const script = std.fmt.allocPrint(
+            b.allocator,
+            \\set -euxo pipefail
+            \\if [ ! -f libcrypto.a ]; then
+            \\  CFLAGS="-fPIC" ./Configure no-shared no-tests
+            \\  make -j"$(nproc)" build_sw
+            \\fi
+        ,
+            .{},
+        ) catch @panic("OOM");
+        const run = b.addSystemCommand(&.{ "bash", "-c", script });
+        run.cwd = openssl_src;
+        break :blk run;
+    };
+    const openssl_include = b.pathJoin(&.{ openssl_src_path, "include" });
+    const openssl_libcrypto = b.pathJoin(&.{ openssl_src_path, "libcrypto.a" });
+    const openssl_libssl = b.pathJoin(&.{ openssl_src_path, "libssl.a" });
+    mod.addIncludePath(.{ .cwd_relative = openssl_include });
+
     // Creates an executable that will run `test` blocks from the provided module.
     // Here `mod` needs to define a target, which is why earlier we made sure to
     // set the releative field.
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });
+    mod_tests.step.dependOn(&openssl_build.step);
+    mod_tests.addIncludePath(.{ .cwd_relative = openssl_include });
+    mod_tests.addObjectFile(.{ .cwd_relative = openssl_libcrypto });
+    mod_tests.addObjectFile(.{ .cwd_relative = openssl_libssl });
+    mod_tests.linkSystemLibrary("dl");
+    mod_tests.linkSystemLibrary("pthread");
+    mod_tests.linkLibC();
 
     // A run step that will run the test executable.
     const run_mod_tests = b.addRunArtifact(mod_tests);
