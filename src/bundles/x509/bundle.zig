@@ -17,7 +17,7 @@ pub const X509Cert = struct {
 
 // Testing if the C library can load a PEM bundle into managed X509 objects.
 // This is hacky, not permenant, just wanted to test the C lib
-// Caller owns the returned list with the provided allocator
+// idomadic zig, the caller owns the returned list with the provided allocator
 pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.ArrayList(X509Cert) {
     var list = std.ArrayList(X509Cert).init(allocator);
 
@@ -25,7 +25,6 @@ pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.A
     errdefer {
         for (list.items) |item| item.deinit();
         list.deinit();
-        // TODO: bubble up the error?
     }
 
     // Create an in-memory BIO that OpenSSL can read PEM blocks from.
@@ -52,7 +51,7 @@ pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.A
     return list;
 }
 
-test "loadPemBundle parses empty input" {
+test "loadPemBundle parses empty string, it should error" {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();

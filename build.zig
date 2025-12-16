@@ -35,13 +35,14 @@ pub fn build(b: *std.Build) void {
         // Later on we'll use this module as the root module of a test executable
         // which requires us to specify a target.
         .target = target,
+        // required for openssl as a C library
+        .link_libc = true,
     });
 
     // Vendor OpenSSL from source tarball. We build it
     // in-place within the fetched source tree and reuse the cached result.
     const openssl_dep = b.dependency("openssl", .{});
     const openssl_src = openssl_dep.path(".");
-    const openssl_src_path = openssl_src.getPath(b);
     const openssl_build = blk: {
         const script = std.fmt.allocPrint(
             b.allocator,
@@ -57,21 +58,21 @@ pub fn build(b: *std.Build) void {
         run.cwd = openssl_src;
         break :blk run;
     };
-    const openssl_include = b.pathJoin(&.{ openssl_src_path, "include" });
-    const openssl_libcrypto = b.pathJoin(&.{ openssl_src_path, "libcrypto.a" });
-    const openssl_libssl = b.pathJoin(&.{ openssl_src_path, "libssl.a" });
-    mod.addIncludePath(.{ .cwd_relative = openssl_include });
+    const openssl_include = openssl_dep.path("include");
+    const openssl_libcrypto = openssl_dep.path("libcrypto.a");
+    const openssl_libssl = openssl_dep.path("libssl.a");
+
+    // Point the module at the vendored headers so `@cImport` can find them.
+    mod.addIncludePath(openssl_include);
 
     // Creates an executable that will run `test` blocks from the provided module.
-    // Here `mod` needs to define a target, which is why earlier we made sure to
-    // set the releative field.
     const mod_tests = b.addTest(.{
         .root_module = mod,
     });
     mod_tests.step.dependOn(&openssl_build.step);
-    mod_tests.addIncludePath(.{ .cwd_relative = openssl_include });
-    mod_tests.addObjectFile(.{ .cwd_relative = openssl_libcrypto });
-    mod_tests.addObjectFile(.{ .cwd_relative = openssl_libssl });
+    mod_tests.addIncludePath(openssl_include);
+    mod_tests.addObjectFile(openssl_libcrypto);
+    mod_tests.addObjectFile(openssl_libssl);
     mod_tests.linkSystemLibrary("dl");
     mod_tests.linkSystemLibrary("pthread");
     mod_tests.linkLibC();

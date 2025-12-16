@@ -32,9 +32,11 @@
     // Once all dependencies are fetched, `zig build` no longer requires
     // internet connectivity.
     .dependencies = .{
+        // managed with zig fetch
+        // zig fetch --save=openssl git+https://github.com/openssl/openssl#<commit you want>
         .openssl = .{
-            .url = "https://www.openssl.org/source/openssl-3.4.0.tar.gz",
-            .hash = "N-V-__8AAJyD7QPT8bAww7cbhBSjflWwADpJQEuNVj5uMRDu",
+            .url = "git+https://github.com/openssl/openssl#7b371d80d959ec9ab4139d09d78e83c090de9779",
+            .hash = "N-V-__8AAAqOFQgrUHOuqw4-sb6qlz1sf2zXv2-sj3b9ncVe",
         },
     },
     .paths = .{

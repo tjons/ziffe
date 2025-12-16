@@ -1,4 +1,5 @@
 const std = @import("std");
+pub const x509 = @import("bundles/x509/bundle.zig");
 
 pub const uriProtocol = "spiffe://";
 
