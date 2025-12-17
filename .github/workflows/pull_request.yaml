@@ -1,0 +1,23 @@
+name: PR checks
+run-name: Pull Request Checks
+on:
+  pull_request:
+    branches:
+      - main
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Zig
+        uses: mlugg/setup-zig@v2
+
+      - name: Build
+        run: zig build
+
+      - name: Format Check
+        run: zig fmt --check .
+        
+      - name: Test
+        run: zig test
