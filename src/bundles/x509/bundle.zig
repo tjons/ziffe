@@ -19,12 +19,12 @@ pub const X509Cert = struct {
 // This is hacky, not permenant, just wanted to test the C lib
 // idomadic zig, the caller owns the returned list with the provided allocator
 pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.ArrayList(X509Cert) {
-    var list = std.ArrayList(X509Cert).init(allocator);
+    var list = std.ArrayList(X509Cert).empty;
 
     // Cleanup if we encounter an error
     errdefer {
         for (list.items) |item| item.deinit();
-        list.deinit();
+        list.deinit(allocator);
     }
 
     // Create an in-memory BIO that OpenSSL can read PEM blocks from.
@@ -32,7 +32,9 @@ pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.A
     // a NUL-terminated buffer.
     const pem_cstr = try std.mem.concatWithSentinel(allocator, u8, &.{pem_bytes}, 0);
     defer allocator.free(pem_cstr);
-    const bio = c.BIO_new_mem_buf(pem_cstr.ptr);
+
+    // TODO: This is hacky, it's just temporary, do not leave this casting long term
+    const bio = c.BIO_new_mem_buf(pem_cstr.ptr, @as(c_int, @intCast(pem_bytes.len)));
     if (bio == null) return error.OpenSslBioAlloc;
     defer _ = c.BIO_free(bio);
 
@@ -45,7 +47,8 @@ pub fn loadPemBundle(allocator: std.mem.Allocator, pem_bytes: []const u8) !std.A
             return error.OpenSslPemRead;
         }
 
-        try list.append(.{ .ptr = cert });
+        // .? is safe here, we checked for null above
+        try list.append(allocator, .{ .ptr = cert.? });
     }
 
     return list;
@@ -56,14 +59,15 @@ test "loadPemBundle parses empty string, it should error" {
     defer _ = gpa.deinit();
     const alloc = gpa.allocator();
 
-    const result = loadPemBundle(alloc, "") catch |err| {
+    // mutable because of var here
+    var result = loadPemBundle(alloc, "") catch |err| {
         // Expect an OpenSSL read failure on empty input.
         try std.testing.expect(err == error.OpenSslPemRead);
         return;
     };
     defer {
         for (result.items) |item| item.deinit();
-        result.deinit();
+        result.deinit(alloc);
     }
     try std.testing.expect(result.items.len == 0);
 }
