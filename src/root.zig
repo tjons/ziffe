@@ -30,10 +30,10 @@ pub const SpiffeID = struct {
         if (!std.mem.eql(u8, uriProtocol, str[0..9])) return error.MissingPrefix;
 
         const stripped = str[9..];
+        if (stripped.len == 0) return error.MissingTrustDomain;
 
         const slash_pos = std.mem.indexOfScalar(u8, stripped, '/') orelse 0;
-        if (slash_pos == 0) return error.MissingTrustDomain;
-        if (stripped.len - 1 == slash_pos) return error.MissingPath;
+        if (stripped.len - 1 == slash_pos or slash_pos == 0) return error.MissingPath;
 
         return new(stripped[0..slash_pos], stripped[slash_pos + 1 ..]);
     }
