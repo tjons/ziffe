@@ -22,8 +22,6 @@ pub fn build(b: *std.Build) !void {
         .target = target,
     });
 
-    // const gen_proto = b.step("gen-proto", "generates zig files from protocol buffer defintions");
-    // const protoc_step = proto
     // This creates a module, which represents a collection of source files alongside
     // some compilation options, such as optimization mode and linked system libraries.
     // Zig modules are the preferred way of making Zig code available to consumers.
