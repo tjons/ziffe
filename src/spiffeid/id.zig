@@ -10,12 +10,12 @@ pub const InvalidSpiffeID = error{
     InvalidCharacters,
 };
 
-pub const SpiffeID = struct {
+pub const ID = struct {
     trust_domain: []const u8,
     path: []const u8,
 
-    pub fn new(trust_domain: []const u8, path: []const u8) SpiffeID {
-        return SpiffeID{
+    pub fn new(trust_domain: []const u8, path: []const u8) ID {
+        return ID{
             .trust_domain = trust_domain,
             .path = path,
         };
@@ -23,7 +23,7 @@ pub const SpiffeID = struct {
 
     // create a new SpiffeID from a string. Validates the string and parses it
     // into a SpiffeID.
-    pub fn from_string(str: []const u8) InvalidSpiffeID!SpiffeID {
+    pub fn from_string(str: []const u8) InvalidSpiffeID!ID {
         if (str.len == 0) return error.EmptySpiffeID;
         if (str.len < uriProtocol.len) return error.MissingPrefix;
         if (!std.mem.eql(u8, uriProtocol, str[0..9])) return error.MissingPrefix;
@@ -38,14 +38,15 @@ pub const SpiffeID = struct {
     }
 
     pub fn string(
-        self: SpiffeID,
+        self: ID,
         alc: std.mem.Allocator,
     ) ![]const u8 {
         return std.fmt.allocPrint(alc, "{s}{s}/{s}", .{ uriProtocol, self.trust_domain, self.path });
     }
 
-    // The maximum size of a SPIFFE ID is 2048 bytes, which is represented by a unsigned 11-bit integer.
-    pub fn size(self: SpiffeID) u11 {
+    // The maximum size of a SPIFFE ID is 2048 bytes, which would be nice to represent with an unsigned 11-bit integer.
+    // Unfortunately, Zig doesn't seem to like `u11` in the submodule setup.
+    pub fn size(self: ID) u64 {
         // include the separating '/' between trust_domain and path and return a
         // usize so this can safely be used for buffer sizing without truncation.
         return uriProtocol.len + self.trust_domain.len + 1 + self.path.len;
@@ -53,7 +54,7 @@ pub const SpiffeID = struct {
 };
 
 test "Create a SpiffeID and convert back to string" {
-    const spiffeID = SpiffeID{
+    const spiffeID = ID{
         .trust_domain = "example.com",
         .path = "workload/test-workload",
     };
@@ -67,25 +68,25 @@ test "Create a SpiffeID and convert back to string" {
 }
 
 test "Parse an empty string as SpiffeID, it should error" {
-    _ = SpiffeID.from_string("") catch |err| {
+    _ = ID.from_string("") catch |err| {
         try std.testing.expect(err == InvalidSpiffeID.EmptySpiffeID);
     };
 }
 
 test "Parse an incomplete string as SpiffeID, it should error" {
-    _ = SpiffeID.from_string("spiffe://") catch |err| {
+    _ = ID.from_string("spiffe://") catch |err| {
         try std.testing.expect(err == InvalidSpiffeID.MissingTrustDomain);
     };
 }
 
 test "Parse a string with protocol and trust domain as SpiffeID, it should error" {
-    _ = SpiffeID.from_string("spiffe://test-domain") catch |err| {
+    _ = ID.from_string("spiffe://test-domain") catch |err| {
         try std.testing.expect(err == InvalidSpiffeID.MissingPath);
     };
 }
 
 test "Parse a valid string as SpiffeID, it should succeed" {
-    const spiffe_id = try SpiffeID.from_string("spiffe://test-domain/1");
+    const spiffe_id = try ID.from_string("spiffe://test-domain/1");
 
     try std.testing.expect(
         std.mem.eql(u8, spiffe_id.path, "1"),
