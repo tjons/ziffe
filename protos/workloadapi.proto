@@ -2,6 +2,8 @@ syntax = "proto3";
 
 import "google/protobuf/struct.proto";
 
+package workloadapi;
+
 // Taken from https://github.com/spiffe/spiffe/blob/c0f5db254e6e509592a2b9064202e9dec468a79a/standards/workloadapi.proto
 
 service SpiffeWorkloadAPI {

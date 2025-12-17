@@ -38,6 +38,10 @@
             .url = "git+https://github.com/openssl/openssl#7b371d80d959ec9ab4139d09d78e83c090de9779",
             .hash = "N-V-__8AAAqOFQgrUHOuqw4-sb6qlz1sf2zXv2-sj3b9ncVe",
         },
+        .protobuf = .{
+            .url = "git+https://github.com/Arwalk/zig-protobuf?ref=master#2828be045c5f3e55c6f3f239c2ec40bc480a26ca",
+            .hash = "protobuf-3.0.0-0e82alnSKAD4lJettI9uUAM148s_36NH5SP7ZVjaAPkg",
+        },
     },
     .paths = .{
         "build.zig",
