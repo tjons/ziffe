@@ -14,10 +14,10 @@ jobs:
         uses: mlugg/setup-zig@v2
 
       - name: Build
-        run: zig build
+        run: zig build 
 
       - name: Format Check
         run: zig fmt --check .
         
       - name: Test
-        run: zig test
+        run: zig build test
