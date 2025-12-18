@@ -1,12 +1,26 @@
 const std = @import("std");
 const testing = std.testing;
 
+// TODO(tjons): implement URI-based equivalents, since Zig has a std.Uri type: https://ziglang.org/documentation/master/std/#std.Uri
+
 /// This type represents a SPIFFE trust domain, as defined in https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md#21-trust-domain.
 pub const TrustDomain = struct {
     td: []const u8,
 
     pub fn string(self: TrustDomain) []const u8 {
         return self.td;
+    }
+
+    pub fn idString(self: TrustDomain, allocator: std.mem.Allocator) ![]const u8 {
+        const result = try allocator.alloc(u8, "spiffe://".len + self.td.len);
+        @memcpy(result[0..9], "spiffe://");
+        @memcpy(result[9..], self.td);
+
+        return result;
+    }
+
+    pub fn name(self: TrustDomain) []const u8 {
+        return self.string();
     }
 };
 
@@ -96,4 +110,11 @@ test "It should not allow a SPIFFE trust domain when the trust domain contains i
 test "It should allow a SPIFFE trust domain when the trust domain starts with 'spiffe://'" {
     const td = try TrustDomainFromString("spiffe://example.myco.net");
     try testing.expect(std.mem.eql(u8, td.string(), "example.myco.net"));
+}
+
+test "It should return the fully qualifed trust domain string" {
+    const td = try TrustDomainFromString("spiffe://example.org");
+    const id = try td.idString(testing.allocator);
+    try testing.expect(std.mem.eql(u8, id, "spiffe://example.org"));
+    testing.allocator.free(id);
 }
