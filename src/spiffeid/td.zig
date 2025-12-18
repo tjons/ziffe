@@ -11,15 +11,19 @@ pub const TrustDomain = struct {
 };
 
 pub fn TrustDomainFromString(idOrName: []const u8) !TrustDomain {
-    try validateTrustDomain(idOrName);
+    var trust_domain = idOrName;
+    if (trust_domain.len > 9 and std.mem.eql(u8, trust_domain[0..9], "spiffe://")) {
+        trust_domain = trust_domain[9..];
+    }
 
-    return TrustDomain{ .td = idOrName };
+    try validateTrustDomain(trust_domain);
+
+    return TrustDomain{ .td = trust_domain };
 }
 
 const InvalidTrustDomain = error{ EmptyTrustDomain, TrustDomainContainsInvalidCharacters, TrustDomainContainsPercentEncodedCharacters, TrustDomainContainsUserPart, TrustDomainContainsPortPart };
 
 // validates a SPIFFE trust domain authority URI segment.
-// TODO(tjons): allow spiffe trust domains where the authority includes the protocol segment.
 fn validateTrustDomain(idOrName: []const u8) InvalidTrustDomain!void {
     if (idOrName.len == 0) return InvalidTrustDomain.EmptyTrustDomain;
 
@@ -87,4 +91,9 @@ test "It should not allow a SPIFFE trust domain when the trust domain contains i
     _ = TrustDomainFromString("my!trust*domain") catch |err| {
         try testing.expect(err == InvalidTrustDomain.TrustDomainContainsInvalidCharacters);
     };
+}
+
+test "It should allow a SPIFFE trust domain when the trust domain starts with 'spiffe://'" {
+    const td = try TrustDomainFromString("spiffe://example.myco.net");
+    try testing.expect(std.mem.eql(u8, td.string(), "example.myco.net"));
 }
