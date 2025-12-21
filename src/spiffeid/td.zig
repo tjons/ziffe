@@ -1,4 +1,5 @@
 const std = @import("std");
+const uriScheme = @import("./protocol.zig").uriScheme;
 const uriProtocol = @import("./protocol.zig").uriProtocol;
 const testing = std.testing;
 
@@ -13,9 +14,9 @@ pub const TrustDomain = struct {
     }
 
     pub fn idString(self: TrustDomain, allocator: std.mem.Allocator) ![]const u8 {
-        const result = try allocator.alloc(u8, uriProtocol.len + self.td.len);
-        @memcpy(result[0..uriProtocol.len], uriProtocol);
-        @memcpy(result[uriProtocol.len..], self.td);
+        const result = try allocator.alloc(u8, uriScheme.len + self.td.len);
+        @memcpy(result[0..uriScheme.len], uriScheme);
+        @memcpy(result[uriScheme.len..], self.td);
 
         return result;
     }
@@ -27,8 +28,8 @@ pub const TrustDomain = struct {
 
 pub fn TrustDomainFromString(idOrName: []const u8) !TrustDomain {
     var trust_domain = idOrName;
-    if (trust_domain.len > uriProtocol.len and std.mem.eql(u8, trust_domain[0..uriProtocol.len], uriProtocol)) {
-        trust_domain = trust_domain[uriProtocol.len..];
+    if (trust_domain.len > uriScheme.len and std.mem.eql(u8, trust_domain[0..uriScheme.len], uriScheme)) {
+        trust_domain = trust_domain[uriScheme.len..];
     }
 
     try validateTrustDomain(trust_domain);
@@ -36,7 +37,58 @@ pub fn TrustDomainFromString(idOrName: []const u8) !TrustDomain {
     return TrustDomain{ .td = trust_domain };
 }
 
-const InvalidTrustDomain = error{
+const InvalidURITrustDomain = error{
+    EmptyTrustDomain,
+    IncorrectScheme,
+    TrustDomainContainsInvalidCharacters,
+    TrustDomainContainsPercentEncodedCharacters,
+    TrustDomainContainsUserPart,
+    TrustDomainContainsPortPart,
+};
+
+pub fn TrustDomainFromUri(uri: std.Uri) InvalidURITrustDomain!TrustDomain {
+    if (!std.mem.eql(u8, uri.scheme, uriProtocol)) {
+        return InvalidURITrustDomain.IncorrectScheme;
+    }
+
+    if (uri.port) |_| {
+        return InvalidURITrustDomain.TrustDomainContainsPortPart;
+    }
+
+    if (uri.user) |_| {
+        return InvalidURITrustDomain.TrustDomainContainsUserPart;
+    }
+
+    if (uri.password) |_| {
+        return InvalidURITrustDomain.TrustDomainContainsUserPart;
+    }
+
+    if (uri.host) |host| {
+        // Something about this `switch` feels wrong, but
+        // I don't know how else to tell the compiler that
+        // since these union fields are the same type, I can
+        // take either one.
+        //
+        // As far as I know, `.raw` isn't set at all on the `.host`
+        // field during uri parsing, but there's always a chance,
+        // so I'll pull both to be extra safe here.
+        switch (host) {
+            .percent_encoded => |*h| {
+                try validateTrustDomain(h.*);
+                return TrustDomain{ .td = h.* };
+            },
+            .raw => |*h| {
+                try validateTrustDomain(h.*);
+                return TrustDomain{ .td = h.* };
+            },
+        }
+    }
+
+    // If the URI has no host component, return EmptyTrustDomain as it is the most appropriate error in this case.
+    return InvalidURITrustDomain.EmptyTrustDomain;
+}
+
+const InvalidStringTrustDomain = error{
     EmptyTrustDomain,
     TrustDomainContainsInvalidCharacters,
     TrustDomainContainsPercentEncodedCharacters,
@@ -45,35 +97,38 @@ const InvalidTrustDomain = error{
 };
 
 // validates a SPIFFE trust domain authority URI segment.
-fn validateTrustDomain(idOrName: []const u8) InvalidTrustDomain!void {
-    if (idOrName.len == 0) return InvalidTrustDomain.EmptyTrustDomain;
+fn validateTrustDomain(idOrName: []const u8) InvalidStringTrustDomain!void {
+    if (idOrName.len == 0) return InvalidStringTrustDomain.EmptyTrustDomain;
     var other_allowed_character: bool = false;
+    var digit = false;
+    var lowercase = false;
 
     for (idOrName) |character| {
         switch (character) {
             '@' => {
                 // A SPIFFE trust domain may not contain the `user` part of the URI authority.
-                return InvalidTrustDomain.TrustDomainContainsUserPart;
+                return InvalidStringTrustDomain.TrustDomainContainsUserPart;
             },
             ':' => {
                 // A SPIFFE trust domain may not contain the `port` part of the URI authority.
-                return InvalidTrustDomain.TrustDomainContainsPortPart;
+                return InvalidStringTrustDomain.TrustDomainContainsPortPart;
             },
             '%' => {
                 // A SPIFFE trust domain may not contain any percent-encoded characters.
-                return InvalidTrustDomain.TrustDomainContainsPercentEncodedCharacters;
+                return InvalidStringTrustDomain.TrustDomainContainsPercentEncodedCharacters;
             },
             '_', '-', '.' => {
                 // A SPIFFE trust domain may contain `_`, `-`, or `.` characters.
                 other_allowed_character = true;
             },
+            else => {
+                digit = std.ascii.isDigit(character);
+                lowercase = std.ascii.isLower(character);
+            },
         }
 
-        const digit = std.ascii.isDigit(character);
-        const lowercase = std.ascii.isLower(character);
-
         if (!digit and !lowercase and !other_allowed_character) {
-            return InvalidTrustDomain.TrustDomainContainsInvalidCharacters;
+            return InvalidStringTrustDomain.TrustDomainContainsInvalidCharacters;
         }
     }
 
@@ -87,25 +142,25 @@ test "It should allow a valid SPIFFE trust domain when the trust domain is provi
 
 test "It should not allow a SPIFFE trust domain when the trust domain contains a port segment" {
     _ = TrustDomainFromString("example.org:80") catch |err| {
-        try testing.expect(err == InvalidTrustDomain.TrustDomainContainsPortPart);
+        try testing.expect(err == InvalidStringTrustDomain.TrustDomainContainsPortPart);
     };
 }
 
 test "It should not allow a SPIFFE trust domain when the trust domain contains a user segment" {
     _ = TrustDomainFromString("user@example.org") catch |err| {
-        try testing.expect(err == InvalidTrustDomain.TrustDomainContainsUserPart);
+        try testing.expect(err == InvalidStringTrustDomain.TrustDomainContainsUserPart);
     };
 }
 
 test "It should not allow a SPIFFE trust domain when the trust domain contains an uppercase letter" {
     _ = TrustDomainFromString("Atrustdomain.org") catch |err| {
-        try testing.expect(err == InvalidTrustDomain.TrustDomainContainsInvalidCharacters);
+        try testing.expect(err == InvalidStringTrustDomain.TrustDomainContainsInvalidCharacters);
     };
 }
 
 test "It should not allow a SPIFFE trust domain when the trust domain contains invalid characters" {
     _ = TrustDomainFromString("my!trust*domain") catch |err| {
-        try testing.expect(err == InvalidTrustDomain.TrustDomainContainsInvalidCharacters);
+        try testing.expect(err == InvalidStringTrustDomain.TrustDomainContainsInvalidCharacters);
     };
 }
 
@@ -116,6 +171,14 @@ test "It should allow a SPIFFE trust domain when the trust domain starts with 's
 
 test "It should return the fully qualifed trust domain string" {
     const td = try TrustDomainFromString("spiffe://example.org");
+    const id = try td.idString(testing.allocator);
+    try testing.expect(std.mem.eql(u8, id, "spiffe://example.org"));
+    testing.allocator.free(id);
+}
+
+test "It should parse a valid URI as a SPIFFE trust domain" {
+    const u = try std.Uri.parse("spiffe://example.org");
+    const td = try TrustDomainFromUri(u);
     const id = try td.idString(testing.allocator);
     try testing.expect(std.mem.eql(u8, id, "spiffe://example.org"));
     testing.allocator.free(id);
