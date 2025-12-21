@@ -1,4 +1,5 @@
 const std = @import("std");
+const iddef = @import("./id.zig");
 const uriScheme = @import("./protocol.zig").uriScheme;
 const uriProtocol = @import("./protocol.zig").uriProtocol;
 const testing = std.testing;
@@ -19,6 +20,10 @@ pub const TrustDomain = struct {
         @memcpy(result[uriScheme.len..], self.td);
 
         return result;
+    }
+
+    pub fn id(self: TrustDomain) iddef.ID {
+        return iddef.ID.new(self.td, "");
     }
 
     pub fn name(self: TrustDomain) []const u8 {
@@ -182,4 +187,11 @@ test "It should parse a valid URI as a SPIFFE trust domain" {
     const id = try td.idString(testing.allocator);
     try testing.expect(std.mem.eql(u8, id, "spiffe://example.org"));
     testing.allocator.free(id);
+}
+
+test "It should return the ID type when the TD is populated" {
+    const td = try TrustDomainFromString("spiffe://example.org");
+    const id = td.id();
+    try testing.expect(std.mem.eql(u8, id.trust_domain, "example.org"));
+    try testing.expect(std.mem.eql(u8, id.path, ""));
 }
