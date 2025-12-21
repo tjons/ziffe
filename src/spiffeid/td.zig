@@ -1,4 +1,5 @@
 const std = @import("std");
+const uriProtocol = @import("./protocol.zig").uriProtocol;
 const testing = std.testing;
 
 // TODO(tjons): implement URI-based equivalents, since Zig has a std.Uri type: https://ziglang.org/documentation/master/std/#std.Uri
@@ -12,9 +13,9 @@ pub const TrustDomain = struct {
     }
 
     pub fn idString(self: TrustDomain, allocator: std.mem.Allocator) ![]const u8 {
-        const result = try allocator.alloc(u8, "spiffe://".len + self.td.len);
-        @memcpy(result[0..9], "spiffe://");
-        @memcpy(result[9..], self.td);
+        const result = try allocator.alloc(u8, uriProtocol.len + self.td.len);
+        @memcpy(result[0..uriProtocol.len], uriProtocol);
+        @memcpy(result[uriProtocol.len..], self.td);
 
         return result;
     }
@@ -26,8 +27,8 @@ pub const TrustDomain = struct {
 
 pub fn TrustDomainFromString(idOrName: []const u8) !TrustDomain {
     var trust_domain = idOrName;
-    if (trust_domain.len > 9 and std.mem.eql(u8, trust_domain[0..9], "spiffe://")) {
-        trust_domain = trust_domain[9..];
+    if (trust_domain.len > uriProtocol.len and std.mem.eql(u8, trust_domain[0..uriProtocol.len], uriProtocol)) {
+        trust_domain = trust_domain[uriProtocol.len..];
     }
 
     try validateTrustDomain(trust_domain);
@@ -35,40 +36,41 @@ pub fn TrustDomainFromString(idOrName: []const u8) !TrustDomain {
     return TrustDomain{ .td = trust_domain };
 }
 
-const InvalidTrustDomain = error{ EmptyTrustDomain, TrustDomainContainsInvalidCharacters, TrustDomainContainsPercentEncodedCharacters, TrustDomainContainsUserPart, TrustDomainContainsPortPart };
+const InvalidTrustDomain = error{
+    EmptyTrustDomain,
+    TrustDomainContainsInvalidCharacters,
+    TrustDomainContainsPercentEncodedCharacters,
+    TrustDomainContainsUserPart,
+    TrustDomainContainsPortPart,
+};
 
 // validates a SPIFFE trust domain authority URI segment.
 fn validateTrustDomain(idOrName: []const u8) InvalidTrustDomain!void {
     if (idOrName.len == 0) return InvalidTrustDomain.EmptyTrustDomain;
+    var other_allowed_character: bool = false;
 
-    for (idOrName, 0..) |character, index| {
-        // TODO(tjons): use this to provide an index number for the invalid character
-        _ = index;
-
-        // A SPIFFE trust domain may not contain the `user` part of the URI authority.
-        if (character == '@') {
-            return InvalidTrustDomain.TrustDomainContainsUserPart;
-        }
-
-        // A SPIFFE trust domain may not contain the `port` part of the URI authority.
-        if (character == ':') {
-            return InvalidTrustDomain.TrustDomainContainsPortPart;
-        }
-
-        // A SPIFFE trust domain may not contain any percent-encoded characters.
-        if (character == '%') {
-            return InvalidTrustDomain.TrustDomainContainsPercentEncodedCharacters;
+    for (idOrName) |character| {
+        switch (character) {
+            '@' => {
+                // A SPIFFE trust domain may not contain the `user` part of the URI authority.
+                return InvalidTrustDomain.TrustDomainContainsUserPart;
+            },
+            ':' => {
+                // A SPIFFE trust domain may not contain the `port` part of the URI authority.
+                return InvalidTrustDomain.TrustDomainContainsPortPart;
+            },
+            '%' => {
+                // A SPIFFE trust domain may not contain any percent-encoded characters.
+                return InvalidTrustDomain.TrustDomainContainsPercentEncodedCharacters;
+            },
+            '_', '-', '.' => {
+                // A SPIFFE trust domain may contain `_`, `-`, or `.` characters.
+                other_allowed_character = true;
+            },
         }
 
         const digit = std.ascii.isDigit(character);
         const lowercase = std.ascii.isLower(character);
-        var other_allowed_character: bool = false;
-
-        // A SPIFFE trust domain may contain `_`, `-`, or `.` characters.
-        for ([3]u8{ '_', '-', '.' }) |c| {
-            if (other_allowed_character) break;
-            if (c == character) other_allowed_character = true;
-        }
 
         if (!digit and !lowercase and !other_allowed_character) {
             return InvalidTrustDomain.TrustDomainContainsInvalidCharacters;

@@ -1,6 +1,5 @@
 pub const std = @import("std");
-
-pub const uriProtocol = "spiffe://";
+const uriProtocol = @import("protocol.zig").uriProtocol;
 
 pub const InvalidSpiffeID = error{
     EmptySpiffeID,
@@ -75,7 +74,7 @@ test "Parse an empty string as SpiffeID, it should error" {
 }
 
 test "Parse an incomplete string as SpiffeID, it should error" {
-    _ = ID.from_string("spiffe://") catch |err| {
+    _ = ID.from_string(uriProtocol) catch |err| {
         try std.testing.expect(err == InvalidSpiffeID.MissingTrustDomain);
     };
 }
