@@ -10,6 +10,7 @@ pub const InvalidSpiffeID = error{
     InvalidCharacters,
 };
 
+/// This type represents a SPIFFE ID.
 pub const ID = struct {
     trust_domain: []const u8,
     path: []const u8,
