@@ -4,9 +4,10 @@ const uriScheme = @import("./protocol.zig").uriScheme;
 const uriProtocol = @import("./protocol.zig").uriProtocol;
 const testing = std.testing;
 
-// TODO(tjons): implement URI-based equivalents, since Zig has a std.Uri type: https://ziglang.org/documentation/master/std/#std.Uri
-
 /// This type represents a SPIFFE trust domain, as defined in https://github.com/spiffe/spiffe/blob/main/standards/SPIFFE-ID.md#21-trust-domain.
+/// Several Go SDK methods are intentionally omitted:
+/// - text marshalling/unmarshalling
+/// - IsZero()
 pub const TrustDomain = struct {
     td: []const u8,
 
@@ -28,6 +29,18 @@ pub const TrustDomain = struct {
 
     pub fn name(self: TrustDomain) []const u8 {
         return self.string();
+    }
+
+    // This is somewhat weird and feels like porting a Go idiom to Zig,
+    // but I implemented it anyways.
+    // TODO(tjons): audit if this is actually the surface we want to expose in time.
+    pub fn compare(self: TrustDomain, other: TrustDomain) i8 {
+        const ordering = std.mem.order(u8, self.td, other.td);
+        switch (ordering) {
+            .lt => return -1,
+            .gt => return 1,
+            .eq => return 0,
+        }
     }
 };
 
@@ -91,6 +104,18 @@ pub fn TrustDomainFromUri(uri: std.Uri) InvalidURITrustDomain!TrustDomain {
 
     // If the URI has no host component, return EmptyTrustDomain as it is the most appropriate error in this case.
     return InvalidURITrustDomain.EmptyTrustDomain;
+}
+
+pub fn RequireTrustDomainFromUri(uri: std.Uri) TrustDomain {
+    return TrustDomainFromUri(uri) catch {
+        @panic("Panic: unable to parse trust domain from URI");
+    };
+}
+
+pub fn RequireTrustDomainFromString(td: []const u8) TrustDomain {
+    return TrustDomainFromString(td) catch {
+        @panic("Panic: unable to parse trust domain from string");
+    };
 }
 
 const InvalidStringTrustDomain = error{
@@ -195,3 +220,18 @@ test "It should return the ID type when the TD is populated" {
     try testing.expect(std.mem.eql(u8, id.trust_domain, "example.org"));
     try testing.expect(std.mem.eql(u8, id.path, ""));
 }
+
+test "comparing two trust domains should work as expected" {
+    const td1 = RequireTrustDomainFromString("spiffe://example1.org");
+    const td2 = RequireTrustDomainFromString("spiffe://example2.org");
+
+    try testing.expect(td1.compare(td2) == -1);
+    try testing.expect(td2.compare(td1) == 1);
+    try testing.expect(td1.compare(td1) == 0);
+}
+
+// It would be really nice if Zig provided a way to manage panics in tests, but from what I can see,
+// based on https://github.com/ziglang/zig/issues/1356, this isn't currently possible.
+//
+// TODO(tjons): cover this behavior in a different suite that is more integration-test like.
+test "When calling RequireTrustDomainFromString with an invalid trust domain, it should panic" {}
