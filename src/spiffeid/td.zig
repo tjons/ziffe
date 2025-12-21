@@ -11,10 +11,15 @@ const testing = std.testing;
 pub const TrustDomain = struct {
     td: []const u8,
 
+    /// Returns a []const u8 representation of the trust domain itself
     pub fn string(self: TrustDomain) []const u8 {
         return self.td;
     }
 
+    /// Returns a []const u8 representation of the trust domain as a SPIFFE ID:
+    /// `example.com` --> `spiffe://example.com`.
+    /// The caller must provide an Allocator with sufficient memory. The memory
+    /// requirements can be discovered with the `TrustDomain.size()` method.
     pub fn idString(self: TrustDomain, allocator: std.mem.Allocator) ![]const u8 {
         const result = try allocator.alloc(u8, uriScheme.len + self.td.len);
         @memcpy(result[0..uriScheme.len], uriScheme);
@@ -41,6 +46,12 @@ pub const TrustDomain = struct {
             .gt => return 1,
             .eq => return 0,
         }
+    }
+
+    /// The number of bytes required to allocate memory for the string representation
+    /// of the trust domain as a SPIFFE ID.
+    pub fn size(self: TrustDomain) usize {
+        return self.td.len + uriScheme.len;
     }
 };
 
@@ -228,6 +239,12 @@ test "comparing two trust domains should work as expected" {
     try testing.expect(td1.compare(td2) == -1);
     try testing.expect(td2.compare(td1) == 1);
     try testing.expect(td1.compare(td1) == 0);
+}
+
+test "trust domain size" {
+    const s = "spiffe://example1.org";
+    const td = RequireTrustDomainFromString(s);
+    try testing.expect(td.size() == s.len);
 }
 
 // It would be really nice if Zig provided a way to manage panics in tests, but from what I can see,
