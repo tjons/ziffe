@@ -1,6 +1,5 @@
 pub const std = @import("std");
-
-pub const uriProtocol = "spiffe://";
+const uriScheme = @import("protocol.zig").uriScheme;
 
 pub const InvalidSpiffeID = error{
     EmptySpiffeID,
@@ -26,8 +25,8 @@ pub const ID = struct {
     // into a SpiffeID.
     pub fn from_string(str: []const u8) InvalidSpiffeID!ID {
         if (str.len == 0) return error.EmptySpiffeID;
-        if (str.len < uriProtocol.len) return error.MissingPrefix;
-        if (!std.mem.eql(u8, uriProtocol, str[0..9])) return error.MissingPrefix;
+        if (str.len < uriScheme.len) return error.MissingPrefix;
+        if (!std.mem.eql(u8, uriScheme, str[0..9])) return error.MissingPrefix;
 
         const stripped = str[9..];
         if (stripped.len == 0) return error.MissingTrustDomain;
@@ -42,7 +41,7 @@ pub const ID = struct {
         self: ID,
         alc: std.mem.Allocator,
     ) ![]const u8 {
-        return std.fmt.allocPrint(alc, "{s}{s}/{s}", .{ uriProtocol, self.trust_domain, self.path });
+        return std.fmt.allocPrint(alc, "{s}{s}/{s}", .{ uriScheme, self.trust_domain, self.path });
     }
 
     // The maximum size of a SPIFFE ID is 2048 bytes, which would be nice to represent with an unsigned 11-bit integer.
@@ -50,7 +49,7 @@ pub const ID = struct {
     pub fn size(self: ID) u64 {
         // include the separating '/' between trust_domain and path and return a
         // usize so this can safely be used for buffer sizing without truncation.
-        return uriProtocol.len + self.trust_domain.len + 1 + self.path.len;
+        return uriScheme.len + self.trust_domain.len + 1 + self.path.len;
     }
 };
 
@@ -75,7 +74,7 @@ test "Parse an empty string as SpiffeID, it should error" {
 }
 
 test "Parse an incomplete string as SpiffeID, it should error" {
-    _ = ID.from_string("spiffe://") catch |err| {
+    _ = ID.from_string(uriScheme) catch |err| {
         try std.testing.expect(err == InvalidSpiffeID.MissingTrustDomain);
     };
 }
