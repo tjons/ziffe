@@ -11,7 +11,7 @@ pub const Matcher = fn (*const id.ID) MatcherError!void;
 //     }
 // }.call;
 
-const idMatcher = struct {
+pub const idMatcher = struct {
     expected: *const id.ID,
     pub fn evaluate(self: idMatcher, check: *const id.ID) MatcherError!void {
         const trust_domains_match = std.mem.eql(u8, self.expected.trust_domain, check.trust_domain);

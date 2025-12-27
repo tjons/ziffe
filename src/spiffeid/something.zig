@@ -17,14 +17,21 @@ pub fn main() !void {
     try stdout.print("SPIFFE ID is: {s}\n", .{name});
     try stdout.flush();
 
+    try stdout.writeAll("Type the comparison spiffe ID\n");
+    try stdout.flush();
+
+    _ = try stdin.peek(1);
+    stdin.toss(1);
     const check_id = try stdin.takeDelimiterExclusive('\n');
+    try stdout.print("comp spiffe ID is: {s}\n", .{check_id});
+    try stdout.flush();
 
     const id = try spiffeid.ID.from_string(name);
-    const known_id = try &spiffeid.ID.from_string(check_id);
+    const known_id = try spiffeid.ID.from_string(check_id);
 
-    const m = idMatcher.MatchStr(known_id);
+    const m = idMatcher.idMatcher{ .expected = &known_id };
 
-    m(id) catch {
+    m.evaluate(&id) catch {
         _ = try stdout.write("SPIFFE ID does not match");
         try stdout.flush();
         return;
