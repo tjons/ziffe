@@ -29,6 +29,12 @@ pub fn build(b: *std.Build) !void {
     // to our consumers. We must give it a name because a Zig package can expose
     // multiple modules and consumers will need to be able to specify which
     // module they want to access.
+    // Create the spiffeid module first so it can be imported by other modules
+    const spiffeid_mod = b.addModule("spiffeid", .{
+        .root_source_file = b.path("src/spiffeid/root.zig"),
+        .target = target,
+    });
+
     const mod = b.addModule("ziffe", .{
         // The root source file is the "entry point" of this module. Users of
         // this module will only be able to access public declarations contained
@@ -43,6 +49,9 @@ pub fn build(b: *std.Build) !void {
         // required for openssl as a C library
         .link_libc = true,
     });
+
+    // Add spiffeid as an import to the main module
+    mod.addImport("spiffeid", spiffeid_mod);
 
     // Vendor OpenSSL from source tarball. We build it
     // in-place within the fetched source tree and reuse the cached result.

@@ -2,7 +2,7 @@ const std = @import("std");
 const testing = std.testing;
 
 pub const x509 = @import("bundle/x509bundle/root.zig");
-pub const spiffeid = @import("spiffeid/root.zig");
+pub const spiffeid = @import("spiffeid");
 
 test "it should be able to use types from submodules" {
     const id = spiffeid.ID{

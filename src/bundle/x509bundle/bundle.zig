@@ -5,6 +5,8 @@ const c = @cImport({
     @cInclude("openssl/err.h");
 });
 
+pub const spiffeid = @import("spiffeid");
+
 // Thin Zig wrapper around an OpenSSL X509*
 pub const X509Cert = struct {
     // *c.X509 gets null protection with Zig
@@ -13,6 +15,12 @@ pub const X509Cert = struct {
     pub fn deinit(self: X509Cert) void {
         c.X509_free(self.ptr);
     }
+};
+
+pub const Bundle = struct {
+    trust_domain: spiffeid.TrustDomains,
+    mutex: *std.Thread.Mutex,
+    x509Authorities: X509Cert,
 };
 
 // Testing if the C library can load a PEM bundle into managed X509 objects.
